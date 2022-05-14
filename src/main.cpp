@@ -15,8 +15,8 @@
 // HoldMotor            motor         1               
 // RingMotor            motor         11              
 // LockMotor            motor         13              
-// LeftDistance         distance      3               
-// FrontDistance        distance      4               
+// LeftDistance         distance      14              
+// FrontDistance        distance      15              
 // ---- END VEXCODE CONFIGURED DEVICES ----
 
 #include "vex.h"
@@ -41,9 +41,12 @@ competition Competition;
 void pre_auton(void) {
   // Initializing Robot Configuration. DO NOT REMOVE!
   vexcodeInit();
-
   // All activities that occur before the competition starts
   // Example: clearing encoders, setting servo positions, ...
+  LockMotor.setTimeout (2, seconds);
+  HoldMotor.setTimeout (2, seconds);
+  Drivetrain.setTimeout(2, seconds);
+  Drivetrain.setStopping(brake);
 }
 
 /*---------------------------------------------------------------------------*/
@@ -57,35 +60,53 @@ void pre_auton(void) {
 /*---------------------------------------------------------------------------*/
 
 void lock_arm() {
-  HoldMotor.spinFor(forward, 0.3, turns);
-  LockMotor.spinFor(forward, 0.3, turns);
+  HoldMotor.spinFor(reverse, 0.3, turns);
+  LockMotor.spinFor(forward, 0.4, turns);
 }
 
 void unlock_arm() {
   LockMotor.spinFor(reverse, 0.3, turns);
-  HoldMotor.spinFor(reverse, 0.3, turns);
+  HoldMotor.spinFor(forward, 0.4, turns, false);
+}
+
+bool gotoobj(double max) {
+  Drivetrain.drive(forward);
+  for (int i = 0; FrontDistance.objectDistance(mm) > 100; i++) {
+    // i*10 = mm distance travelled
+    if (i*10 > max) {
+      return false;
+    }
+  }
+  Drivetrain.stop();
+  return true;
 }
 
 void autonomous(void) {
+  Controller1.Screen.print("START AUTONOMOUS");
   double leftDistance = LeftDistance.objectDistance(mm);
-  bool isLeft = leftDistance < 400;
-  vex::turnType turnDirection = isLeft ? right : left; // initial turn direction to go to center
-  vex::turnType oppositeTurnDirection = isLeft ? left : right;
+  bool isLeft = leftDistance > 500;
+  if (isLeft) {
+    Controller1.Screen.print("on left side");
+  } else {
+    Controller1.Screen.print("on right side");
+  }
+  vex::turnType alternateTurnDirection = isLeft ? left : right; // direction to turn if middle not found
+  HoldMotor.spinFor(forward, 0.35, turns, false);
   Drivetrain.driveFor(reverse, 50, mm);
   // drive to center (tallest) goal
-  Drivetrain.turnFor(turnDirection, 45, degrees);
-  Drivetrain.driveFor(forward, 1000, mm);
-  if (FrontDistance.objectDistance(mm) < 100) {
+  Drivetrain.driveFor(forward, 50, mm);
+  bool found = gotoobj(2000);
+  if (found) {
     // Goal still there
     lock_arm();
     Drivetrain.driveFor(reverse, 1000, mm);
   } else {
     // Goal not there, get the one on our original side
-    Drivetrain.turnFor(oppositeTurnDirection, 135, degrees);
-    Drivetrain.driveFor(reverse, 1000, mm);
+    Drivetrain.turnFor(alternateTurnDirection, 150, degrees);
+    gotoobj(2000);
     lock_arm();
-    Drivetrain.turnFor(oppositeTurnDirection, 90, degrees);
-    Drivetrain.driveFor(reverse, 1000, mm);
+    Drivetrain.turnFor(alternateTurnDirection, 90, degrees);
+    Drivetrain.driveFor(forward, 1000, mm);
   }
  
 }
